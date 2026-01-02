@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.ComponentModel.DataAnnotations;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -14,31 +17,84 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
 
-app.MapGet("/weatherforecast", () =>
+// In-memory store for demo purposes
+var concerts = new ConcurrentDictionary<string, Concert>();
+
+// GET /concerts
+app.MapGet("/concerts", () => Results.Ok(concerts.Values))
+    .WithName("GetConcerts")
+    .WithOpenApi();
+
+// GET /concerts/{id}
+app.MapGet("/concerts/{id}", (string id) =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
+    if (concerts.TryGetValue(id, out var concert))
+        return Results.Ok(concert);
+    return Results.NotFound();
 })
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+    .WithName("GetConcertById")
+    .WithOpenApi();
+
+// POST /concerts
+app.MapPost("/concerts", (ConcertCreateRequest req) =>
+{
+    var id = $"concert-{Guid.NewGuid()}";
+    var concert = new Concert
+    {
+        Id = id,
+        Artist = req.Artist,
+        Date = req.Date,
+        TotalSeats = req.TotalSeats,
+        AvailableSeats = req.TotalSeats
+    };
+    concerts[id] = concert;
+    return Results.Created($"/concerts/{id}", concert);
+})
+    .WithName("CreateConcert")
+    .WithOpenApi();
+
+// POST /concerts/{id}/reserve
+app.MapPost("/concerts/{id}/reserve", (string id, SeatReservationRequest req) =>
+{
+    if (!concerts.TryGetValue(id, out var concert))
+        return Results.NotFound();
+    if (req.Quantity <= 0)
+        return Results.BadRequest("Quantity must be positive.");
+    if (concert.AvailableSeats < req.Quantity)
+        return Results.BadRequest("Not enough seats available.");
+    concert.AvailableSeats -= req.Quantity;
+    concerts[id] = concert;
+    // Here you would publish a SeatsReserved event
+    return Results.Ok(concert);
+})
+    .WithName("ReserveSeats")
+    .WithOpenApi();
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+public class Concert
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    public string Id { get; set; } = default!;
+    public string Artist { get; set; } = default!;
+    public DateTime Date { get; set; }
+    public int TotalSeats { get; set; }
+    public int AvailableSeats { get; set; }
+}
+
+public class ConcertCreateRequest
+{
+    [Required]
+    public string Artist { get; set; } = default!;
+    [Required]
+    public DateTime Date { get; set; }
+    [Range(1, int.MaxValue)]
+    public int TotalSeats { get; set; }
+}
+
+public class SeatReservationRequest
+{
+    [Range(1, int.MaxValue)]
+    public int Quantity { get; set; }
 }
