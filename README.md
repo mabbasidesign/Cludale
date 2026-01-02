@@ -1,5 +1,8 @@
 # Cludale Tickets
 
+<img width="1536" height="1024" alt="week-2" src="https://github.com/user-attachments/assets/a4d7bd8b-5582-41f1-bcab-ca2ee6e5a4e8" />
+
+
 Cludale Tickets is a cloud-native, event-driven concert ticketing platform built on Azure Container Apps, Dapr, and Cosmos DB.
 
 The project demonstrates modern Azure DevOps practices including CI/CD with Azure DevOps, blue-green deployments, event-driven messaging with Azure Service Bus, and distributed tracing with Application Insights.
