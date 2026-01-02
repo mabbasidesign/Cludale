@@ -1,5 +1,6 @@
+
 using System.Collections.Concurrent;
-using System.ComponentModel.DataAnnotations;
+using ConcertService.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,8 +20,42 @@ if (app.Environment.IsDevelopment())
 
 
 
+
 // In-memory store for demo purposes
 var concerts = new ConcurrentDictionary<string, Concert>();
+
+// Seed data
+var seedConcerts = new[]
+{
+    new Concert
+    {
+        Id = "concert-1",
+        Artist = "The Rolling Codes",
+        Date = DateTime.Now.AddDays(10),
+        TotalSeats = 100,
+        AvailableSeats = 100
+    },
+    new Concert
+    {
+        Id = "concert-2",
+        Artist = "Null Pointer Exceptionals",
+        Date = DateTime.Now.AddDays(20),
+        TotalSeats = 150,
+        AvailableSeats = 150
+    },
+    new Concert
+    {
+        Id = "concert-3",
+        Artist = "Async Awaiters",
+        Date = DateTime.Now.AddDays(30),
+        TotalSeats = 200,
+        AvailableSeats = 200
+    }
+};
+foreach (var concert in seedConcerts)
+{
+    concerts[concert.Id] = concert;
+}
 
 // GET /concerts
 app.MapGet("/concerts", () => Results.Ok(concerts.Values))
@@ -72,29 +107,7 @@ app.MapPost("/concerts/{id}/reserve", (string id, SeatReservationRequest req) =>
     .WithName("ReserveSeats")
     .WithOpenApi();
 
+
 app.Run();
 
-public class Concert
-{
-    public string Id { get; set; } = default!;
-    public string Artist { get; set; } = default!;
-    public DateTime Date { get; set; }
-    public int TotalSeats { get; set; }
-    public int AvailableSeats { get; set; }
-}
 
-public class ConcertCreateRequest
-{
-    [Required]
-    public string Artist { get; set; } = default!;
-    [Required]
-    public DateTime Date { get; set; }
-    [Range(1, int.MaxValue)]
-    public int TotalSeats { get; set; }
-}
-
-public class SeatReservationRequest
-{
-    [Range(1, int.MaxValue)]
-    public int Quantity { get; set; }
-}
