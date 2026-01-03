@@ -33,6 +33,6 @@ steps:
     dockerfile: '$(dockerfilePath)'
     buildContext: '$(buildContext)'
     tags: '$(Build.BuildId)'
-    containerRegistry: '$(DOCKER_REGISTRY_SERVICE_CONNECTION)'
+    containerRegistry: 'cludale_service-connection'
 
 # To deploy to Azure Web App for Containers, add a deployment step here.
