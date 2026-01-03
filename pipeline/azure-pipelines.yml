@@ -12,6 +12,7 @@ variables:
   dockerfilePath: 'Dockerfile'
   buildContext: '.'
 
+
 steps:
 - task: UseDotNet@2
   inputs:
@@ -25,14 +26,23 @@ steps:
     dotnet publish src/src/ConcertService/ConcertService.csproj --configuration Release --output publish --no-build
   displayName: 'Restore, Build, and Publish'
 
+# Docker Hub login using secrets
+- script: |
+    echo $(DOCKERHUB_PASSWORD) | docker login --username $(DOCKERHUB_USERNAME) --password-stdin
+  displayName: 'Login to Docker Hub'
+  env:
+    DOCKERHUB_USERNAME: $(DOCKERHUB_USERNAME)
+    DOCKERHUB_PASSWORD: $(DOCKERHUB_PASSWORD)
+
 - task: Docker@2
   displayName: 'Build and push Docker image'
   inputs:
     command: 'buildAndPush'
-    repository: '$(imageName)'
+    repository: 'mabbasidesign/$(imageName)'
     dockerfile: '$(dockerfilePath)'
     buildContext: '$(buildContext)'
-    tags: '$(Build.BuildId)'
-    containerRegistry: 'cludale_service-connection'
+    tags: |
+      $(Build.BuildId)
+      latest
 
 # To deploy to Azure Web App for Containers, add a deployment step here.
