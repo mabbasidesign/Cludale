@@ -28,16 +28,18 @@ steps:
 
 
 
-- task: Docker@2
-  displayName: 'Build and push Docker image'
-  inputs:
-    command: 'buildAndPush'
-    repository: 'mabbasidesign/$(imageName)'
-    dockerfile: '$(dockerfilePath)'
-    buildContext: '$(buildContext)'
-    tags: |
-      $(Build.BuildId)
-      latest
-    containerRegistry: 'dockerhub-cludale'
+
+# --- Docker build and push temporarily disabled ---
+# - task: Docker@2
+#   displayName: 'Build and push Docker image'
+#   inputs:
+#     command: 'buildAndPush'
+#     repository: 'mabbasidesign/$(imageName)'
+#     dockerfile: '$(dockerfilePath)'
+#     buildContext: '$(buildContext)'
+#     tags: |
+#       $(Build.BuildId)
+#       latest
+#     containerRegistry: 'dockerhub-cludale'
 
 # To deploy to Azure Web App for Containers, add a deployment step here.
