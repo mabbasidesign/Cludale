@@ -26,13 +26,7 @@ steps:
     dotnet publish src/src/ConcertService/ConcertService.csproj --configuration Release --output publish --no-build
   displayName: 'Restore, Build, and Publish'
 
-# Docker Hub login using secrets
-- script: |
-    echo $(DOCKERHUB_PASSWORD) | docker login --username $(DOCKERHUB_USERNAME) --password-stdin
-  displayName: 'Login to Docker Hub'
-  env:
-    DOCKERHUB_USERNAME: $(DOCKERHUB_USERNAME)
-    DOCKERHUB_PASSWORD: $(DOCKERHUB_PASSWORD)
+
 
 - task: Docker@2
   displayName: 'Build and push Docker image'
@@ -44,5 +38,6 @@ steps:
     tags: |
       $(Build.BuildId)
       latest
+    containerRegistry: 'dockerhub-cludale'
 
 # To deploy to Azure Web App for Containers, add a deployment step here.
