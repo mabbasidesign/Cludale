@@ -1,0 +1,38 @@
+# Azure DevOps Pipeline for .NET + Docker
+# Builds, tests, and publishes Docker image to Azure Container Registry (ACR)
+
+trigger:
+  - master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  imageName: 'concertservice'
+  dockerfilePath: 'Dockerfile'
+  buildContext: '.'
+
+steps:
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '8.0.x'
+    installationPath: $(Agent.ToolsDirectory)/dotnet
+
+- script: |
+    dotnet restore src/src/ConcertService/ConcertService.csproj
+    dotnet build src/src/ConcertService/ConcertService.csproj --configuration Release --no-restore
+    dotnet publish src/src/ConcertService/ConcertService.csproj --configuration Release --output publish --no-build
+  displayName: 'Restore, Build, and Publish'
+
+- task: Docker@2
+  displayName: 'Build and push Docker image'
+  inputs:
+    command: 'buildAndPush'
+    repository: '$(imageName)'
+    dockerfile: '$(dockerfilePath)'
+    buildContext: '$(buildContext)'
+    tags: '$(Build.BuildId)'
+    containerRegistry: '$(DOCKER_REGISTRY_SERVICE_CONNECTION)'
+
+# To deploy to Azure Web App for Containers, add a deployment step here.
