@@ -8,8 +8,8 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  imageRepository: '<your-acr-name>.azurecr.io/cludale'
-  dockerRegistryServiceConnection: 'dockerhub-cludale'
+  imageRepository: 'acrcludale.azurecr.io/cludale'
+  dockerRegistryServiceConnection: 'CludaleDockerRegistry'
   tag: '$(Build.BuildId)'
   dockerfilePath: 'Dockerfile'
   buildContext: '.'
@@ -28,17 +28,18 @@ steps:
   displayName: 'Restore, Build, and Publish'
 
 
-# task: Docker@2
-#   displayName: 'Build and push Docker image'
-#   inputs:
-#     command: 'buildAndPush'
-#     repository: '$(imageRepository)'
-#     dockerfile: '$(dockerfilePath)'
-#     buildContext: '$(buildContext)'
-#     tags: |
-#       $(tag)
-#       latest
-#     containerRegistry: $(dockerRegistryServiceConnection)
+  
+- task: Docker@2
+  displayName: 'Build and push Docker image'
+  inputs:
+    command: 'buildAndPush'
+    repository: '$(imageRepository)'
+    dockerfile: '$(dockerfilePath)'
+    buildContext: '$(buildContext)'
+    tags: |
+      $(tag)
+      latest
+    containerRegistry: $(dockerRegistryServiceConnection)
 
 # Deploy Azure resources using Bicep
 - task: AzureCLI@2
