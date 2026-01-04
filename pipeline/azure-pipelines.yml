@@ -44,7 +44,7 @@ steps:
 - task: AzureCLI@2
   displayName: 'Create Resource Group and Deploy Bicep'
   inputs:
-    azureSubscription: 'f2f7f036-0d40-48ca-a532-eb590c2eac8b'
+    azureSubscription: 'CludaleAzureSubscription'
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
