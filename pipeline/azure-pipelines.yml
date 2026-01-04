@@ -8,10 +8,11 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  imageName: 'concertservice'
+  imageRepository: 'mabbasidesign2/cludale'
+  dockerRegistryServiceConnection: 'dockerhub-cludale'
+  tag: '$(Build.BuildId)'
   dockerfilePath: 'Dockerfile'
   buildContext: '.'
-
 
 steps:
 - task: UseDotNet@2
@@ -27,19 +28,36 @@ steps:
   displayName: 'Restore, Build, and Publish'
 
 
-
-
-
-- task: Docker@2
   displayName: 'Build and push Docker image'
   inputs:
     command: 'buildAndPush'
-    repository: 'mabbasidesign/$(imageName)'
+    repository: '$(imageRepository)'
     dockerfile: '$(dockerfilePath)'
     buildContext: '$(buildContext)'
     tags: |
-      $(Build.BuildId)
+      $(tag)
       latest
-    containerRegistry: 'dockerhub-cludale'
+    containerRegistry: $(dockerRegistryServiceConnection)
+# task: Docker@2
+#   displayName: 'Build and push Docker image'
+#   inputs:
+#     command: 'buildAndPush'
+#     repository: '$(imageRepository)'
+#     dockerfile: '$(dockerfilePath)'
+#     buildContext: '$(buildContext)'
+#     tags: |
+#       $(tag)
+#       latest
+#     containerRegistry: $(dockerRegistryServiceConnection)
 
-# To deploy to Azure Web App for Containers, add a deployment step here.
+# Deploy Azure resources using Bicep
+- task: AzureCLI@2
+  displayName: 'Create Resource Group and Deploy Bicep'
+  inputs:
+    azureSubscription: 'f2f7f036-0d40-48ca-a532-eb590c2eac8b'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      az group create --name rg-cludale --location canadaeast
+      az deployment group create --resource-group rg-cludale --template-file infra/main.bicep
+    workingDirectory: $(System.DefaultWorkingDirectory)
