@@ -15,20 +15,7 @@ variables:
   dockerfilePath: 'Dockerfile'
   buildContext: '.'
 
-steps:
 
-trigger:
-  - master
-
-pool:
-  vmImage: 'ubuntu-latest'
-
-variables:
-  imageRepository: 'acrcludale.azurecr.io/cludale'
-  dockerRegistryServiceConnection: 'CludaleDockerRegistry'
-  tag: '$(Build.BuildId)'
-  dockerfilePath: 'Dockerfile'
-  buildContext: '.'
 
 stages:
   - stage: Build
