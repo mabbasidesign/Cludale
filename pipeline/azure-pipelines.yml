@@ -15,40 +15,71 @@ variables:
   buildContext: '.'
 
 steps:
-- task: UseDotNet@2
-  inputs:
-    packageType: 'sdk'
-    version: '8.0.x'
-    installationPath: $(Agent.ToolsDirectory)/dotnet
 
-- script: |
-    dotnet restore src/src/ConcertService/ConcertService.csproj
-    dotnet build src/src/ConcertService/ConcertService.csproj --configuration Release --no-restore
-    dotnet publish src/src/ConcertService/ConcertService.csproj --configuration Release --output publish --no-build
-  displayName: 'Restore, Build, and Publish'
+trigger:
+  - master
 
+pool:
+  vmImage: 'ubuntu-latest'
 
-  
-- task: Docker@2
-  displayName: 'Build and push Docker image'
-  inputs:
-    command: 'buildAndPush'
-    repository: '$(imageRepository)'
-    dockerfile: '$(dockerfilePath)'
-    buildContext: '$(buildContext)'
-    tags: |
-      $(tag)
-      latest
-    containerRegistry: $(dockerRegistryServiceConnection)
+variables:
+  imageRepository: 'acrcludale.azurecr.io/cludale'
+  dockerRegistryServiceConnection: 'CludaleDockerRegistry'
+  tag: '$(Build.BuildId)'
+  dockerfilePath: 'Dockerfile'
+  buildContext: '.'
 
-# Deploy Azure resources using Bicep
-- task: AzureCLI@2
-  displayName: 'Create Resource Group and Deploy Bicep'
-  inputs:
-    azureSubscription: 'CludaleAzureSubscription'
-    scriptType: 'bash'
-    scriptLocation: 'inlineScript'
-    inlineScript: |
-      az group create --name rg-cludale --location canadaeast
-      az deployment group create --resource-group rg-cludale --template-file infra/main.bicep
-    workingDirectory: $(System.DefaultWorkingDirectory)
+stages:
+  - stage: Build
+    displayName: 'Build Stage'
+    jobs:
+      - job: BuildJob
+        displayName: 'Build and Publish'
+        steps:
+          - task: UseDotNet@2
+            inputs:
+              packageType: 'sdk'
+              version: '8.0.x'
+              installationPath: $(Agent.ToolsDirectory)/dotnet
+          - script: |
+              dotnet restore src/src/ConcertService/ConcertService.csproj
+              dotnet build src/src/ConcertService/ConcertService.csproj --configuration Release --no-restore
+              dotnet publish src/src/ConcertService/ConcertService.csproj --configuration Release --output publish --no-build
+            displayName: 'Restore, Build, and Publish'
+
+  - stage: Docker
+    displayName: 'Docker Stage'
+    dependsOn: Build
+    jobs:
+      - job: DockerJob
+        displayName: 'Build and Push Docker Image'
+        steps:
+          - task: Docker@2
+            displayName: 'Build and push Docker image'
+            inputs:
+              command: 'buildAndPush'
+              repository: '$(imageRepository)'
+              dockerfile: '$(dockerfilePath)'
+              buildContext: '$(buildContext)'
+              tags: |
+                $(tag)
+                latest
+              containerRegistry: $(dockerRegistryServiceConnection)
+
+  - stage: Deploy
+    displayName: 'Deploy Stage'
+    dependsOn: Docker
+    jobs:
+      - job: DeployJob
+        displayName: 'Deploy Azure Resources'
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Create Resource Group and Deploy Bicep'
+            inputs:
+              azureSubscription: 'CludaleAzureSubscription'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az group create --name rg-cludale --location canadaeast
+                az deployment group create --resource-group rg-cludale --template-file infra/main.bicep
+              workingDirectory: $(System.DefaultWorkingDirectory)
