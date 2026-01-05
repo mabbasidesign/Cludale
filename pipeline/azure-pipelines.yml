@@ -1,6 +1,7 @@
 # Azure DevOps Pipeline for .NET + Docker
 # Builds, tests, and publishes Docker image to Azure Container Registry (ACR)
 
+
 trigger:
   - master
 
