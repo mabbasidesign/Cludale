@@ -72,5 +72,5 @@ stages:
                 az deployment group create \
                   --resource-group rg-cludale \
                   --template-file infra/main.bicep \
-                  --parameters acrUsername=$(ACR_USERNAME) acrPassword=$(ACR_PASSWORD)
+                  --parameters acrUsername=$(ACR_USERNAME) acrPassword=$(ACR_PASSWORD) sqlAdminPassword=$(sqlAdminPassword)
               workingDirectory: $(System.DefaultWorkingDirectory)
