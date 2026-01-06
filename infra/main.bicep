@@ -20,7 +20,7 @@ module acaModule 'aca.bicep' = {
 // Bicep template to provision a Resource Group and Azure Container Registry (ACR)
 
 
-param location string = 'eastus'
+param location string = 'canadaeast'
 param acrName string = 'acrcludale'
 
 module acrModule 'acr.bicep' = {
@@ -33,8 +33,8 @@ module acrModule 'acr.bicep' = {
 
 
 // Azure SQL parameters
-param sqlServerName string = 'cludale-sqlserver'
-param sqlDbName string = 'ConcertServiceDb'
+param sqlServerName string = 'cludale-sqlserver2'
+param sqlDbName string = 'ConcertServiceDb2'
 param sqlAdminUser string = 'sqladminuser'
 @secure()
 param sqlAdminPassword string
