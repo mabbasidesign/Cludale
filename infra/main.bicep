@@ -20,7 +20,7 @@ module acaModule 'aca.bicep' = {
 // Bicep template to provision a Resource Group and Azure Container Registry (ACR)
 
 
-param location string = 'canadaeast'
+param location string = 'westus'
 param acrName string = 'acrcludale'
 
 module acrModule 'acr.bicep' = {

@@ -1,6 +1,6 @@
 // Azure SQL Server and Database Bicep module with managed identity support
 
-param location string = 'canadaeast'
+param location string = 'westus'
 param sqlServerName string
 param sqlDbName string
 param administratorLogin string
