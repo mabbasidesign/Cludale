@@ -31,4 +31,21 @@ module acrModule 'acr.bicep' = {
   }
 }
 
-// Add more resources (e.g., ACA, App Service, Cosmos DB, SQL) as needed
+
+// Azure SQL parameters
+param sqlServerName string = 'cludale-sqlserver'
+param sqlDbName string = 'ConcertServiceDb'
+param sqlAdminUser string = 'sqladminuser'
+@secure()
+param sqlAdminPassword string
+
+module sqlModule 'sql.bicep' = {
+  name: 'sqlModule'
+  params: {
+    location: location
+    sqlServerName: sqlServerName
+    sqlDbName: sqlDbName
+    administratorLogin: sqlAdminUser
+    administratorPassword: sqlAdminPassword
+  }
+}

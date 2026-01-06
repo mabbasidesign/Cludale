@@ -17,6 +17,9 @@ resource acaEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
 resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: appName
   location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     managedEnvironmentId: acaEnv.id
     configuration: {
@@ -47,4 +50,7 @@ resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
       ]
     }
   }
+}
+
+output managedIdentityPrincipalId string = acaApp.identity.principalId
 }
