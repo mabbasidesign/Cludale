@@ -23,33 +23,32 @@ This project demonstrates a modern DevOps workflow for a .NET application using 
 - **ACA App**: `cludale-app`
 
 ## Pipeline Secrets/Variables
-- `ACR_USERNAME`: ACR admin username or service principal
-- `ACR_PASSWORD`: ACR admin password or service principal secret (mark as secret)
+
+> **Note:** ACR credentials are no longer required. ACA uses managed identity for secure image pulls from ACR.
 
 ## How It Works
 - The pipeline builds and publishes the .NET app.
 - Docker@2 builds and pushes the image to ACR.
-- AzureCLI@2 deploys Bicep templates, passing ACR credentials to ACA.
-- ACA pulls the image from ACR using the provided credentials.
+- AzureCLI@2 deploys Bicep templates. ACA pulls the image from ACR using its managed identity (no credentials needed).
 
 ## How to Set Up
 1. **Create Azure Resources**
    - Resource group: `az group create --name rg-cludale --location canadaeast`
    - ACR: Deploy via Bicep or portal
 2. **Configure Azure DevOps**
-   - Create service connections for Azure and ACR
-   - Add pipeline secrets: `ACR_USERNAME`, `ACR_PASSWORD`
+   - Create a service connection for Azure
+   - No ACR credentials are needed; ACA uses managed identity
 3. **Run the Pipeline**
    - The pipeline will build, push, and deploy automatically.
 
 ## Security Notes
-- Store secrets in Azure DevOps as pipeline secrets.
-- For production, consider using managed identity for ACA instead of passing credentials.
+- Store only SQL admin password as a pipeline secret.
+- ACA and ACR use managed identity for secure, passwordless access.
 
 ## Useful Commands
 - List ACR repos: `az acr repository list --name acrcludale --output table`
 - List tags: `az acr repository show-tags --name acrcludale --repository cludale --output table`
-- Deploy Bicep manually: `az deployment group create --resource-group rg-cludale --template-file infra/main.bicep --parameters acrUsername=... acrPassword=...`
+- Deploy Bicep manually: `az deployment group create --resource-group rg-cludale --template-file infra/main.bicep --parameters location=canadaeast ...`
 
 ## Further Enhancements
 - Add automated tests and publish results
@@ -74,18 +73,20 @@ This project demonstrates a modern DevOps workflow for a .NET application using 
    - If region restrictions occur, switch to a supported region (e.g., eastus).
 
 4. **Grant ACA Managed Identity Access to SQL**
-   - After deployment, get the ACA app's managed identity principalId from the Azure Portal or CLI.
-   - Connect to Azure SQL as admin (using SSMS, Azure Data Studio, or Portal Query Editor).
-   - Run:
-     ```sql
-     CREATE USER [<principalId>] FROM EXTERNAL PROVIDER;
-     ALTER ROLE db_owner ADD MEMBER [<principalId>];
-     ```
+    - After deployment, get the ACA app's managed identity principalId from the Azure Portal, CLI, or Bicep output.
+    - Connect to your Azure SQL database as an Azure AD admin (using SSMS, Azure Data Studio, or Portal Query Editor).
+    - Run:
+       ```sql
+       CREATE USER [aca-managed-identity] FROM EXTERNAL PROVIDER WITH SID = '<principalId>';
+       ALTER ROLE db_datareader ADD MEMBER [aca-managed-identity];
+       ALTER ROLE db_datawriter ADD MEMBER [aca-managed-identity];
+       ```
+    - Replace `[aca-managed-identity]` with a name for the user, and `<principalId>` with the managed identity's objectId (GUID).
 
 5. **Update .NET App for Azure AD Authentication**
-   - Use a connection string like:
-     `Server=tcp:<your-server>.database.windows.net,1433;Database=ConcertServiceDb;Authentication=Active Directory Managed Identity;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;`
-   - No username or password required in code.
+    - Use a connection string like:
+       `Server=tcp:<your-server>.database.windows.net,1433;Database=ConcertServiceDb;Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;`
+    - No username or password required in code. Use `DefaultAzureCredential` in your .NET app for best results.
 
 6. **Switch Regions (Optional)**
    - To use a different region, update the `location` parameter in Bicep and pipeline, then redeploy.

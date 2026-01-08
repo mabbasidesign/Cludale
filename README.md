@@ -137,5 +137,17 @@ Designed to showcase scalable microservices, resilient communication, and produc
 
 ---
 
+## Database Migrations (EF Core)
+
+To apply Entity Framework Core migrations to your Azure SQL database, use:
+
+```sh
+dotnet ef database update --connection "Server=tcp:cludale-sqlserver2.database.windows.net,1433;Initial Catalog=ConcertServiceDb2;User ID=sqladminuser;Password=your_password;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+```
+
+This command updates the database schema to match your latest EF Core migrations. The `--connection` argument overrides the connection string in appsettings.json, allowing you to target your Azure SQL instance directly.
+
+---
+
 ## Contact
 For questions or contributions, open an issue or pull request.

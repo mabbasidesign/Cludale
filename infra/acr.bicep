@@ -1,5 +1,4 @@
 // acr.bicep
-// Module for Azure Container Registry
 param location string
 param acrName string
 
@@ -10,6 +9,9 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' = {
     name: 'Basic'
   }
   properties: {
-    adminUserEnabled: true
+    adminUserEnabled: false // ✅ Use MI + RBAC only
   }
 }
+
+output acrId string = acr.id
+output loginServer string = acr.properties.loginServer

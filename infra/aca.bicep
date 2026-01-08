@@ -1,17 +1,17 @@
 // aca.bicep
-// Module for Azure Container Apps Environment and App
 param location string
-param environmentName string = 'aca-env'
-param appName string = 'cludale-app'
+param environmentName string
+param appName string
 param containerImage string
 param acrServer string
-param acrUsername string
-param acrPassword string
+
+// SQL inputs (passed from main.bicep)
+param sqlServerFqdn string
+param sqlDbName string
 
 resource acaEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: environmentName
   location: location
-  properties: {}
 }
 
 resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
@@ -30,22 +30,29 @@ resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
       registries: [
         {
           server: acrServer
-          username: acrUsername
-          passwordSecretRef: 'acr-password'
-        }
-      ]
-      secrets: [
-        {
-          name: 'acr-password'
-          value: acrPassword
+          identity: 'SystemAssigned' // ✅ Explicit MI usage
         }
       ]
     }
     template: {
       containers: [
         {
-          image: containerImage
           name: appName
+          image: containerImage
+          resources: {
+            cpu: 0.5
+            memory: '1Gi'
+          }
+          env: [
+            {
+              name: 'SQL_SERVER'
+              value: sqlServerFqdn
+            }
+            {
+              name: 'SQL_DATABASE'
+              value: sqlDbName
+            }
+          ]
         }
       ]
     }
@@ -53,3 +60,4 @@ resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
 }
 
 output managedIdentityPrincipalId string = acaApp.identity.principalId
+output fqdn string = acaApp.properties.configuration.ingress.fqdn

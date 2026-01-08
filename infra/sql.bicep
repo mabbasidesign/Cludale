@@ -1,11 +1,14 @@
-// Azure SQL Server and Database Bicep module with managed identity support
-
-param location string = 'westus'
+// sql.bicep
+param location string
 param sqlServerName string
 param sqlDbName string
 param administratorLogin string
 @secure()
 param administratorPassword string
+
+// Azure AD admin (required for Managed Identity access)
+param aadAdminLogin string
+param aadAdminObjectId string
 
 resource sqlServer 'Microsoft.Sql/servers@2022-02-01-preview' = {
   name: sqlServerName
@@ -18,11 +21,21 @@ resource sqlServer 'Microsoft.Sql/servers@2022-02-01-preview' = {
   }
 }
 
+resource sqlAadAdmin 'Microsoft.Sql/servers/administrators@2022-02-01-preview' = {
+  parent: sqlServer
+  name: 'activeDirectory'
+  properties: {
+    administratorType: 'ActiveDirectory'
+    login: aadAdminLogin
+    sid: aadAdminObjectId
+    tenantId: subscription().tenantId
+  }
+}
+
 resource sqlDb 'Microsoft.Sql/servers/databases@2022-02-01-preview' = {
   parent: sqlServer
   name: sqlDbName
   location: location
-  properties: {}
   sku: {
     name: 'Basic'
     tier: 'Basic'
