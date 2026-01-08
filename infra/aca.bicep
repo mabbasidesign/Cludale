@@ -5,7 +5,7 @@ param appName string
 param containerImage string
 param acrServer string
 
-// SQL inputs (passed from main.bicep)
+// SQL (passed from main)
 param sqlServerFqdn string
 param sqlDbName string
 
@@ -30,7 +30,6 @@ resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
       registries: [
         {
           server: acrServer
-          identity: 'SystemAssigned' // ✅ Explicit MI usage
         }
       ]
     }
@@ -40,7 +39,7 @@ resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
           name: appName
           image: containerImage
           resources: {
-            cpu: 0.5
+            cpu: 1
             memory: '1Gi'
           }
           env: [

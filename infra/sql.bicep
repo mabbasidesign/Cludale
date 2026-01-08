@@ -3,10 +3,11 @@ param location string
 param sqlServerName string
 param sqlDbName string
 param administratorLogin string
+
 @secure()
 param administratorPassword string
 
-// Azure AD admin (required for Managed Identity access)
+// Azure AD admin for Managed Identity
 param aadAdminLogin string
 param aadAdminObjectId string
 

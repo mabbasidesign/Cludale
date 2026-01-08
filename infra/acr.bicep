@@ -9,7 +9,7 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' = {
     name: 'Basic'
   }
   properties: {
-    adminUserEnabled: false // ✅ Use MI + RBAC only
+    adminUserEnabled: false
   }
 }
 

@@ -1,16 +1,18 @@
-// main.bicep
-// Orchestrator for Cludale Azure-native app
+// main.bicep (FLAT – NO MODULES)
 
-param location string = 'canadaeast'
+param location string = 'westus'
 
 // ---------- ACR ----------
 param acrName string = 'acrcludale'
 
-module acrModule 'acr.bicep' = {
-  name: 'acrModule'
-  params: {
-    location: location
-    acrName: acrName
+resource acr 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' = {
+  name: acrName
+  location: location
+  sku: {
+    name: 'Basic'
+  }
+  properties: {
+    adminUserEnabled: false
   }
 }
 
@@ -18,23 +20,52 @@ module acrModule 'acr.bicep' = {
 param sqlServerName string = 'cludale-sqlserver'
 param sqlDbName string = 'ConcertServiceDb'
 param sqlAdminUser string = 'sqladminuser'
+
 @secure()
 param sqlAdminPassword string
 
-// Azure AD admin (for Managed Identity access)
+// Azure AD admin for MI
 param aadAdminLogin string
 param aadAdminObjectId string
 
-module sqlModule 'sql.bicep' = {
-  name: 'sqlModule'
-  params: {
-    location: location
-    sqlServerName: sqlServerName
-    sqlDbName: sqlDbName
+resource sqlServer 'Microsoft.Sql/servers@2022-02-01-preview' = {
+  name: sqlServerName
+  location: location
+  properties: {
     administratorLogin: sqlAdminUser
-    administratorPassword: sqlAdminPassword
-    aadAdminLogin: aadAdminLogin
-    aadAdminObjectId: aadAdminObjectId
+    administratorLoginPassword: sqlAdminPassword
+    version: '12.0'
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+resource sqlAadAdmin 'Microsoft.Sql/servers/administrators@2022-02-01-preview' = {
+  parent: sqlServer
+  name: 'activeDirectory'
+  properties: {
+    administratorType: 'ActiveDirectory'
+    login: aadAdminLogin
+    sid: aadAdminObjectId
+    tenantId: subscription().tenantId
+  }
+}
+
+resource sqlDb 'Microsoft.Sql/servers/databases@2022-02-01-preview' = {
+  parent: sqlServer
+  name: sqlDbName
+  location: location
+  sku: {
+    name: 'Basic'
+    tier: 'Basic'
+  }
+}
+
+resource allowAzureServices 'Microsoft.Sql/servers/firewallRules@2022-02-01-preview' = {
+  parent: sqlServer
+  name: 'AllowAzureServices'
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '0.0.0.0'
   }
 }
 
@@ -43,44 +74,72 @@ param environmentName string = 'aca-env'
 param appName string = 'cludale-app'
 param imageTag string
 
-var containerImage = '${acrModule.outputs.loginServer}/cludale:${imageTag}'
+var containerImage = '${acr.properties.loginServer}/cludale:${imageTag}'
 
-module acaModule 'aca.bicep' = {
-  name: 'acaModule'
-  params: {
-    location: location
-    environmentName: environmentName
-    appName: appName
-    containerImage: containerImage
-    acrServer: acrModule.outputs.loginServer
-    sqlServerFqdn: sqlModule.outputs.sqlServerFqdn
-    sqlDbName: sqlModule.outputs.sqlDbNameOut
+resource acaEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
+  name: environmentName
+  location: location
+}
+
+resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
+  name: appName
+  location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    managedEnvironmentId: acaEnv.id
+    configuration: {
+      ingress: {
+        external: true
+        targetPort: 80
+      }
+      registries: [
+        {
+          server: acr.properties.loginServer
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: appName
+          image: containerImage
+          resources: {
+            cpu: 1
+            memory: '1Gi'
+          }
+          env: [
+            {
+              name: 'SQL_SERVER'
+              value: sqlServer.properties.fullyQualifiedDomainName
+            }
+            {
+              name: 'SQL_DATABASE'
+              value: sqlDbName
+            }
+          ]
+        }
+      ]
+    }
   }
 }
 
-// ---------- RBAC: ACA → ACR (AcrPull) ----------
-resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(
-    acrModule.outputs.acrId,
-    acaModule.outputs.managedIdentityPrincipalId,
-    'acrpull'
-  )
-  scope: acrModule.outputs.acrId
-  dependsOn: [
-    acrModule
-    acaModule
-  ]
+// ---------- RBAC: ACA → ACR ----------
+resource acrPull 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
+  name: guid(acr.id, acaApp.id, 'AcrPull')
+  scope: acr
   properties: {
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',
-      '7f951dda-4ed3-4680-a7ca-43fe172d538d' // AcrPull
+      '7f951dda-4ed3-4680-a7ca-43fe172d538d'
     )
-    principalId: acaModule.outputs.managedIdentityPrincipalId
+    principalId: acaApp.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
 // ---------- Outputs ----------
-output acaFqdn string = acaModule.outputs.fqdn
-output acrLoginServer string = acrModule.outputs.loginServer
-output sqlServerFqdn string = sqlModule.outputs.sqlServerFqdn
+output acaFqdn string = acaApp.properties.configuration.ingress.fqdn
+output acrLoginServer string = acr.properties.loginServer
+output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
