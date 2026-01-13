@@ -1,145 +1,82 @@
-// main.bicep (FLAT – NO MODULES)
-
 param location string = 'westus'
+param imageTag string
 
-// ---------- ACR ----------
-param acrName string = 'acrcludale'
-
-resource acr 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' = {
-  name: acrName
-  location: location
-  sku: {
-    name: 'Basic'
-  }
-  properties: {
-    adminUserEnabled: false
-  }
-}
-
-// ---------- SQL ----------
+// ---------- SQL bootstrap (ONLY for initial creation) ----------
 param sqlServerName string = 'cludale-sqlserver'
 param sqlDbName string = 'ConcertServiceDb'
-param sqlAdminUser string = 'sqladminuser'
+param sqlAdminLogin string
 
 @secure()
 param sqlAdminPassword string
 
-// Azure AD admin for MI
+// Azure AD admin (human or group)
 param aadAdminLogin string
 param aadAdminObjectId string
 
-resource sqlServer 'Microsoft.Sql/servers@2022-02-01-preview' = {
-  name: sqlServerName
-  location: location
-  properties: {
-    administratorLogin: sqlAdminUser
-    administratorLoginPassword: sqlAdminPassword
-    version: '12.0'
-    publicNetworkAccess: 'Enabled'
-  }
-}
-
-resource sqlAadAdmin 'Microsoft.Sql/servers/administrators@2022-02-01-preview' = {
-  parent: sqlServer
-  name: 'activeDirectory'
-  properties: {
-    administratorType: 'ActiveDirectory'
-    login: aadAdminLogin
-    sid: aadAdminObjectId
-    tenantId: subscription().tenantId
-  }
-}
-
-resource sqlDb 'Microsoft.Sql/servers/databases@2022-02-01-preview' = {
-  parent: sqlServer
-  name: sqlDbName
-  location: location
-  sku: {
-    name: 'Basic'
-    tier: 'Basic'
-  }
-}
-
-resource allowAzureServices 'Microsoft.Sql/servers/firewallRules@2022-02-01-preview' = {
-  parent: sqlServer
-  name: 'AllowAzureServices'
-  properties: {
-    startIpAddress: '0.0.0.0'
-    endIpAddress: '0.0.0.0'
-  }
-}
+// ---------- ACR ----------
+param acrName string = 'acrcludale'
 
 // ---------- ACA ----------
 param environmentName string = 'aca-env'
 param appName string = 'cludale-app'
-param imageTag string
 
-var containerImage = '${acr.properties.loginServer}/cludale:${imageTag}'
+// ================= MODULES =================
 
-resource acaEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
-  name: environmentName
-  location: location
-}
-
-resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
-  name: appName
-  location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    managedEnvironmentId: acaEnv.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 80
-      }
-      registries: [
-        {
-          server: acr.properties.loginServer
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: appName
-          image: containerImage
-          resources: {
-            cpu: 1
-            memory: '1Gi'
-          }
-          env: [
-            {
-              name: 'SQL_SERVER'
-              value: sqlServer.properties.fullyQualifiedDomainName
-            }
-            {
-              name: 'SQL_DATABASE'
-              value: sqlDbName
-            }
-          ]
-        }
-      ]
-    }
+// ACR
+module acr './acr.bicep' = {
+  name: 'acrModule'
+  params: {
+    location: location
+    acrName: acrName
   }
 }
 
-// ---------- RBAC: ACA → ACR ----------
+// SQL
+module sql './sql.bicep' = {
+  name: 'sqlModule'
+  params: {
+    location: location
+    sqlServerName: sqlServerName
+    sqlDbName: sqlDbName
+    administratorLogin: sqlAdminLogin
+    administratorPassword: sqlAdminPassword
+    aadAdminLogin: aadAdminLogin
+    aadAdminObjectId: aadAdminObjectId
+  }
+}
+
+// ACA
+module aca './aca.bicep' = {
+  name: 'acaModule'
+  params: {
+    location: location
+    appName: appName
+    environmentName: environmentName
+    acrLoginServer: acr.outputs.loginServer
+    imageTag: imageTag
+    sqlServerFqdn: sql.outputs.sqlServerFqdn
+    sqlDatabaseName: sql.outputs.sqlDbNameOut
+  }
+}
+
+// ================= SECURITY (RBAC) =================
+
+// ACA → ACR (pull images using Managed Identity)
 resource acrPull 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(acr.id, acaApp.id, 'AcrPull')
-  scope: acr
+  name: guid(acrName, appName, 'AcrPull')
+  scope: resourceId('Microsoft.ContainerRegistry/registries', acrName)
   properties: {
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',
-      '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+      '7f951dda-4ed3-4680-a7ca-43fe172d538d' // AcrPull
     )
-    principalId: acaApp.identity.principalId
+    principalId: aca.outputs.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-// ---------- Outputs ----------
-output acaFqdn string = acaApp.properties.configuration.ingress.fqdn
-output acrLoginServer string = acr.properties.loginServer
-output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
+// ================= OUTPUTS =================
+
+output acaFqdn string = aca.outputs.fqdn
+output acrLoginServer string = acr.outputs.loginServer
+output sqlServerFqdn string = sql.outputs.sqlServerFqdn

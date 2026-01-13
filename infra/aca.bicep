@@ -1,27 +1,26 @@
-// aca.bicep
 param location string
-param environmentName string
 param appName string
-param containerImage string
-param acrServer string
+param environmentName string
 
-// SQL (passed from main)
+param acrLoginServer string
+param imageTag string
+
 param sqlServerFqdn string
-param sqlDbName string
+param sqlDatabaseName string
 
-resource acaEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
+resource env 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: environmentName
   location: location
 }
 
-resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
+resource app 'Microsoft.App/containerApps@2023-05-01' = {
   name: appName
   location: location
   identity: {
     type: 'SystemAssigned'
   }
   properties: {
-    managedEnvironmentId: acaEnv.id
+    managedEnvironmentId: env.id
     configuration: {
       ingress: {
         external: true
@@ -29,7 +28,7 @@ resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
       }
       registries: [
         {
-          server: acrServer
+          server: acrLoginServer
         }
       ]
     }
@@ -37,7 +36,7 @@ resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
       containers: [
         {
           name: appName
-          image: containerImage
+          image: '${acrLoginServer}/cludale:${imageTag}'
           resources: {
             cpu: 1
             memory: '1Gi'
@@ -49,7 +48,7 @@ resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
             }
             {
               name: 'SQL_DATABASE'
-              value: sqlDbName
+              value: sqlDatabaseName
             }
           ]
         }
@@ -58,5 +57,5 @@ resource acaApp 'Microsoft.App/containerApps@2023-05-01' = {
   }
 }
 
-output managedIdentityPrincipalId string = acaApp.identity.principalId
-output fqdn string = acaApp.properties.configuration.ingress.fqdn
+output principalId string = app.identity.principalId
+output fqdn string = app.properties.configuration.ingress.fqdn
