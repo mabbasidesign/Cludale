@@ -1,17 +1,20 @@
 trigger:
-  - master
+  - master  # Trigger pipeline on master branch
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  location: 'westus'
-  rgName: 'rg-cludale'
-  acrName: 'acrcludale'
-  imageName: 'cludale'
-  tag: '$(Build.BuildId)'
-  dockerfilePath: 'Dockerfile'
-  buildContext: '.'
+  location: 'westus'              # Azure region
+  rgName: 'rg-cludale'            # Resource Group name
+  acrName: 'acrcludale'           # Azure Container Registry name
+  imageName: 'cludale'            # Docker image repository name
+  tag: '$(Build.BuildId)'         # Docker image tag = Build ID
+  dockerfilePath: 'Dockerfile'    # Path to Dockerfile
+  buildContext: '.'               # Docker build context
+  acaName: 'my-containerapp'      # Azure Container App name
+  acaEnv: 'my-aca-env'            # ACA environment name
+  databaseName: 'ConcertDb'       # SQL database name
 
 stages:
 
@@ -22,21 +25,30 @@ stages:
   displayName: 'Provision Azure Infrastructure'
   jobs:
     - job: InfraJob
-      displayName: 'Deploy Bicep'
+      displayName: 'Deploy Bicep and capture outputs'
       steps:
+        # Create Resource Group (idempotent)
         - task: AzureCLI@2
-          displayName: 'Deploy infrastructure using Bicep'
+          displayName: 'Create Resource Group'
           inputs:
             azureSubscription: 'CludaleAzureSubscription'
             scriptType: 'bash'
             scriptLocation: 'inlineScript'
             inlineScript: |
-              az group create \
-                --name $(rgName) \
-                --location $(location)
+              az group create --name $(rgName) --location $(location)
 
+        # Deploy Bicep template
+        - task: AzureCLI@2
+          displayName: 'Deploy Bicep'
+          inputs:
+            azureSubscription: 'CludaleAzureSubscription'
+            scriptType: 'bash'
+            scriptLocation: 'inlineScript'
+            inlineScript: |
+              # Deploy main.bicep with parameters
               az deployment group create \
                 --resource-group $(rgName) \
+                --name $(Build.BuildId) \
                 --template-file infra/main.bicep \
                 --parameters \
                   location=$(location) \
@@ -45,39 +57,77 @@ stages:
                   sqlAdminPassword=$(SQL_ADMIN_PASSWORD) \
                   aadAdminLogin=$(AAD_ADMIN_LOGIN) \
                   aadAdminObjectId=$(AAD_ADMIN_OBJECT_ID)
-          workingDirectory: $(System.DefaultWorkingDirectory)
+
+        # Capture Bicep outputs as pipeline variables
+        - task: AzureCLI@2
+          displayName: 'Capture Bicep Outputs'
+          inputs:
+            azureSubscription: 'CludaleAzureSubscription'
+            scriptType: 'bash'
+            scriptLocation: 'inlineScript'
+            inlineScript: |
+              # Extract ACR login server from Bicep output
+              ACR_LOGIN_SERVER=$(az deployment group show \
+                --resource-group $(rgName) \
+                --name $(Build.BuildId) \
+                --query "properties.outputs.acrLoginServer.value" -o tsv)
+              
+              # Extract SQL FQDN from Bicep output
+              SQL_FQDN=$(az deployment group show \
+                --resource-group $(rgName) \
+                --name $(Build.BuildId) \
+                --query "properties.outputs.sqlFqdn.value" -o tsv)
+
+              # Set pipeline variables to pass to later stages
+              echo "##vso[task.setvariable variable=acrLoginServer]$ACR_LOGIN_SERVER"
+              echo "##vso[task.setvariable variable=sqlFqdn]$SQL_FQDN"
 
 # ===============================
-# STAGE 2: BUILD
+# STAGE 2: BUILD .NET APP
 # ===============================
 - stage: Build
   dependsOn: Infra
   displayName: 'Build .NET App'
   jobs:
     - job: BuildJob
+      displayName: 'Build .NET App'
       steps:
+        # Install .NET SDK
         - task: UseDotNet@2
           inputs:
             packageType: 'sdk'
             version: '8.0.x'
 
+        # Restore, build, and publish .NET project
         - script: |
             dotnet restore src/src/ConcertService/ConcertService.csproj
             dotnet build src/src/ConcertService/ConcertService.csproj -c Release
             dotnet publish src/src/ConcertService/ConcertService.csproj -c Release -o publish
-          displayName: 'Build .NET App'
+          displayName: 'Build and Publish .NET App'
 
 # ===============================
-# STAGE 3: DOCKER
+# STAGE 3: DOCKER IMAGE
 # ===============================
 - stage: Docker
   dependsOn: Build
   displayName: 'Build & Push Docker Image'
   jobs:
     - job: DockerJob
+      displayName: 'Docker Build & Push'
       steps:
+        # Login to ACR using service connection (no secrets required)
+        - task: AzureCLI@2
+          displayName: 'Login to ACR'
+          inputs:
+            azureSubscription: 'CludaleAzureSubscription'
+            scriptType: 'bash'
+            scriptLocation: 'inlineScript'
+            inlineScript: |
+              az acr login --name $(acrName)
+
+        # Build and push Docker image
         - task: Docker@2
-          displayName: 'Build and Push Image to ACR'
+          displayName: 'Build & Push Image'
           inputs:
             command: buildAndPush
             repository: '$(imageName)'
@@ -87,3 +137,56 @@ stages:
               $(tag)
               latest
             containerRegistry: 'CludaleAzureSubscription'
+
+# ===============================
+# STAGE 4: DEPLOY ACA + SQL MI ACCESS
+# ===============================
+- stage: Deploy
+  dependsOn: Docker
+  displayName: 'Deploy to Azure Container Apps'
+  jobs:
+    - job: ACAJob
+      displayName: 'Deploy ACA & Grant SQL Access'
+      steps:
+        # Deploy ACA with Managed Identity enabled
+        - task: AzureCLI@2
+          displayName: 'Deploy ACA'
+          inputs:
+            azureSubscription: 'CludaleAzureSubscription'
+            scriptType: 'bash'
+            scriptLocation: 'inlineScript'
+            inlineScript: |
+              az containerapp create \
+                --name $(acaName) \
+                --resource-group $(rgName) \
+                --image $(acrLoginServer)/$(imageName):$(tag) \
+                --environment $(acaEnv) \
+                --registry-server $(acrLoginServer) \
+                --cpu 0.5 --memory 1.0Gi \
+                --min-replicas 1 --max-replicas 3 \
+                --enable-managed-identity
+
+        # Grant SQL DB access to ACA's Managed Identity
+        - task: AzureCLI@2
+          displayName: 'Grant SQL DB Access to ACA MI'
+          inputs:
+            azureSubscription: 'CludaleAzureSubscription'
+            scriptType: 'bash'
+            scriptLocation: 'inlineScript'
+            inlineScript: |
+              # Get ACA Managed Identity principal ID
+              ACA_MI_PRINCIPAL=$(az containerapp show \
+                --name $(acaName) \
+                --resource-group $(rgName) \
+                --query identity.principalId -o tsv)
+              
+              # Ensure Azure CLI SQL extension is installed
+              az extension add --name sql
+
+              # Assign minimal SQL roles to ACA MI (example: db_datareader)
+              az sql db ad-admin create \
+                --server $(sqlFqdn) \
+                --resource-group $(rgName) \
+                --display-name "ACA-MI-Admin" \
+                --object-id $ACA_MI_PRINCIPAL \
+                --role "db_datareader"
