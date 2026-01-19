@@ -25,3 +25,17 @@ dotnet run --project src/src/OrderService/OrderService.csproj
 
 ## Swagger
 - Available at `/swagger` in development mode
+
+## Running OrderService in Docker
+
+1. Build the Docker image:
+   ```sh
+   docker build -t orderservice .
+   ```
+2. Run the container (replace <SQL_CONNECTION_STRING> as needed):
+   ```sh
+   docker run -e ConnectionStrings__DefaultConnection="<SQL_CONNECTION_STRING>" -p 8080:8080 orderservice
+   ```
+
+- The service will be available at http://localhost:8080
+- Ensure your SQL Server is accessible from the container (use host.docker.internal for localdb, or a network-accessible SQL Server instance).

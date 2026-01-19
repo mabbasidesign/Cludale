@@ -1,0 +1,13 @@
+bin/
+obj/
+*.mdf
+*.ldf
+*.user
+*.vspscc
+*.vssscc
+*.suo
+*.userosscache
+*.sln.docstates
+*.db
+*.DS_Store
+.vs/
