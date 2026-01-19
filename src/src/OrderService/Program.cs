@@ -3,9 +3,9 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Use in-memory database for development
+// Use SQL Server like ConcertService
 builder.Services.AddDbContext<OrderDbContext>(options =>
-    options.UseInMemoryDatabase("OrderDb"));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
