@@ -27,7 +27,7 @@ stages:
     - job: InfraJob
       displayName: 'Deploy Bicep and capture outputs'
       steps:
-        # Create Resource Group (idempotent)
+        # 1 Create Resource Group (idempotent)
         - task: AzureCLI@2
           displayName: 'Create Resource Group'
           inputs:
@@ -37,7 +37,7 @@ stages:
             inlineScript: |
               az group create --name $(rgName) --location $(location)
 
-        # Deploy Bicep template
+        # 2 Deploy Bicep template
         - task: AzureCLI@2
           displayName: 'Deploy Bicep'
           inputs:
@@ -58,7 +58,7 @@ stages:
                   aadAdminLogin=$(AAD_ADMIN_LOGIN) \
                   aadAdminObjectId=$(AAD_ADMIN_OBJECT_ID)
 
-        # Capture Bicep outputs as pipeline variables
+        # 3 Capture Bicep outputs as pipeline variables
         - task: AzureCLI@2
           displayName: 'Capture Bicep Outputs'
           inputs:
