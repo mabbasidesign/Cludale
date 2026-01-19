@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace OrderService.Migrations
 {
     /// <inheritdoc />
@@ -24,6 +26,15 @@ namespace OrderService.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Orders", x => x.Id);
+                });
+
+            migrationBuilder.InsertData(
+                table: "Orders",
+                columns: new[] { "Id", "CreatedAt", "CustomerName", "Status" },
+                values: new object[,]
+                {
+                    { 1, new DateTime(2026, 1, 19, 0, 0, 0, 0, DateTimeKind.Unspecified), "Alice", "Pending" },
+                    { 2, new DateTime(2026, 1, 18, 0, 0, 0, 0, DateTimeKind.Unspecified), "Bob", "Paid" }
                 });
         }
 
