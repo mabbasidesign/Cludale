@@ -64,7 +64,7 @@ module aca './aca.bicep' = {
 // ACA → ACR (pull images using Managed Identity)
 resource acrPull 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
   name: guid(acrName, appName, 'AcrPull')
-  scope: resourceId('Microsoft.ContainerRegistry/registries', acrName)
+    scope: acr
   properties: {
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',
