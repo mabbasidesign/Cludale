@@ -64,15 +64,16 @@ module aca './aca.bicep' = {
 // ACA → ACR (pull images using Managed Identity)
 resource acrPull 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
   name: guid(acrName, appName, 'AcrPull')
-    scope: acr
-  properties: {
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      '7f951dda-4ed3-4680-a7ca-43fe172d538d' // AcrPull
-    )
-    principalId: aca.outputs.principalId
-    principalType: 'ServicePrincipal'
-  }
+    scope: resourceGroup()
+    properties: {
+      scope: resourceId('Microsoft.ContainerRegistry/registries', acrName)
+      roleDefinitionId: subscriptionResourceId(
+        'Microsoft.Authorization/roleDefinitions',
+        '7f951dda-4ed3-4680-a7ca-43fe172d538d' // AcrPull
+      )
+      principalId: aca.outputs.principalId
+      principalType: 'ServicePrincipal'
+    }
 }
 
 // ================= OUTPUTS =================
