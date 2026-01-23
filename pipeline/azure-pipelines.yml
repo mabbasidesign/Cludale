@@ -158,7 +158,7 @@ stages:
           displayName: 'Grant SQL DB Access to ACA MI'
           inputs:
             azureSubscription: 'CludaleAzureSubscription'
-              scriptType: 'ps'
+            scriptType: 'ps'
             scriptLocation: 'inlineScript'
             inlineScript: |
               $ACA_MI_PRINCIPAL = az containerapp show --name $env:acaName --resource-group $env:rgName --query identity.principalId -o tsv
